@@ -24,7 +24,11 @@ import org.activiti.engine.impl.persistence.entity.VariableInstanceEntityImpl;
 import org.activiti.engine.impl.variable.StringType;
 import org.activiti.spring.process.ProcessExtensionService;
 import org.activiti.spring.process.model.Extension;
+import org.activiti.spring.process.model.Mapping;
 import org.activiti.spring.process.model.ProcessExtensionModel;
+import org.activiti.spring.process.model.ProcessVariablesMapping;
+import org.activiti.spring.process.model.VariableDefinition;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -32,11 +36,18 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -53,9 +64,11 @@ import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
+@SpringBootTest
 public class ExtensionsVariablesMappingProviderTest {
 
     @InjectMocks
+    @Autowired
     private ExtensionsVariablesMappingProvider variablesMappingProvider;
 
     @Mock
@@ -255,6 +268,198 @@ public class ExtensionsVariablesMappingProviderTest {
 
         //then
         assertThat(outputVariables).isEmpty();
+    }
+
+    @Test
+    public void calculateOutputVariablesShouldConvertValueFromDoubleToBigDecimal() {
+
+        //given
+        String taskId = "task-id";
+        String processVariableId = "process-variable-id";
+        String processVariableName = "bigdecimal-process-variable";
+        String doubleOutputName = "double-output";
+
+        Extension extension = new Extension();
+        DelegateExecution execution = buildExecution(extension, taskId);
+
+        VariableDefinition bigdecimalProcessVariable = new VariableDefinition();
+        bigdecimalProcessVariable.setType("bigdecimal");
+        bigdecimalProcessVariable.setName(processVariableName);
+        bigdecimalProcessVariable.setId(processVariableId);
+        extension.setProperties(Map.of(processVariableId, bigdecimalProcessVariable));
+
+        ProcessVariablesMapping mappings = new ProcessVariablesMapping();
+        Mapping mapping = new Mapping();
+        mapping.setType(Mapping.SourceMappingType.VARIABLE);
+        mapping.setValue(doubleOutputName);
+        mappings.setOutputs(Map.of(processVariableName, mapping));
+        extension.setMappings(Map.of(taskId, mappings));
+
+        double doubleValue = 2.3;
+        BigDecimal bigDecimalValue = BigDecimal.valueOf(doubleValue);
+        Map<String, Object> availableVariables = singletonMap(doubleOutputName, doubleValue);
+
+        //when
+        Map<String, Object> outPutVariables = variablesMappingProvider.calculateOutPutVariables(buildMappingExecutionContext(execution),
+            availableVariables);
+
+        //then
+        assertThat(outPutVariables.get(processVariableName)).isEqualTo(bigDecimalValue);
+    }
+
+    @Test
+    public void calculateOutputVariablesShouldConvertValueFromIntegerToBigDecimal() {
+
+        //given
+        String taskId = "task-id";
+        String processVariableId = "process-variable-id";
+        String processVariableName = "bigdecimal-process-variable";
+        String integerOutputName = "integer-output";
+
+        Extension extension = new Extension();
+        DelegateExecution execution = buildExecution(extension, taskId);
+
+        VariableDefinition bigdecimalProcessVariable = new VariableDefinition();
+        bigdecimalProcessVariable.setType("bigdecimal");
+        bigdecimalProcessVariable.setName(processVariableName);
+        bigdecimalProcessVariable.setId(processVariableId);
+        extension.setProperties(Map.of(processVariableId, bigdecimalProcessVariable));
+
+        ProcessVariablesMapping mappings = new ProcessVariablesMapping();
+        Mapping mapping = new Mapping();
+        mapping.setType(Mapping.SourceMappingType.VARIABLE);
+        mapping.setValue(integerOutputName);
+        mappings.setOutputs(Map.of(processVariableName, mapping));
+        extension.setMappings(Map.of(taskId, mappings));
+
+        Integer intValue = 2;
+        BigDecimal bigDecimalValue = BigDecimal.valueOf(intValue);
+
+        Map<String, Object> availableVariables = singletonMap(integerOutputName, intValue);
+
+        //when
+        Map<String, Object> outPutVariables = variablesMappingProvider.calculateOutPutVariables(buildMappingExecutionContext(execution),
+            availableVariables);
+
+        //then
+        assertThat(outPutVariables.get(processVariableName)).asInstanceOf(InstanceOfAssertFactories.BIG_DECIMAL).isEqualByComparingTo(bigDecimalValue);
+    }
+
+    @Test
+    public void calculateOutputVariablesShouldConvertLocalDateToDate() {
+        //given
+        String taskId = "task-id";
+        String processVariableId = "process-variable-id";
+        String processVariableName = "localdate-process-variable";
+        String integerOutputName = "date-output";
+
+        Extension extension = new Extension();
+        DelegateExecution execution = buildExecution(extension, taskId);
+
+        VariableDefinition localDateProcessVariable = new VariableDefinition();
+        localDateProcessVariable.setType("date");
+        localDateProcessVariable.setName(processVariableName);
+        localDateProcessVariable.setId(processVariableId);
+        extension.setProperties(Map.of(processVariableId, localDateProcessVariable));
+
+        ProcessVariablesMapping mappings = new ProcessVariablesMapping();
+        Mapping mapping = new Mapping();
+        mapping.setType(Mapping.SourceMappingType.VARIABLE);
+        mapping.setValue(integerOutputName);
+        mappings.setOutputs(Map.of(processVariableName, mapping));
+        extension.setMappings(Map.of(taskId, mappings));
+
+        LocalDate localDateValue = LocalDate.now();
+        Date dateValue = Date.from(localDateValue.atStartOfDay(ZoneOffset.UTC).toInstant());
+
+        Map<String, Object> availableVariables = singletonMap(integerOutputName, localDateValue);
+
+        //when
+        Map<String, Object> outPutVariables = variablesMappingProvider.calculateOutPutVariables(buildMappingExecutionContext(execution),
+            availableVariables);
+
+        //then
+        assertThat(outPutVariables.get(processVariableName)).asInstanceOf(InstanceOfAssertFactories.DATE).isEqualTo(dateValue);
+    }
+
+    @Test
+    public void calculateOutputVariablesShouldConvertLocalDateTimeToDate() {
+        //given
+        String taskId = "task-id";
+        String processVariableId = "process-variable-id";
+        String processVariableName = "localdate-process-variable";
+        String integerOutputName = "date-output";
+
+        Extension extension = new Extension();
+        DelegateExecution execution = buildExecution(extension, taskId);
+
+        VariableDefinition localDateProcessVariable = new VariableDefinition();
+        localDateProcessVariable.setType("date");
+        localDateProcessVariable.setName(processVariableName);
+        localDateProcessVariable.setId(processVariableId);
+        extension.setProperties(Map.of(processVariableId, localDateProcessVariable));
+
+        ProcessVariablesMapping mappings = new ProcessVariablesMapping();
+        Mapping mapping = new Mapping();
+        mapping.setType(Mapping.SourceMappingType.VARIABLE);
+        mapping.setValue(integerOutputName);
+        mappings.setOutputs(Map.of(processVariableName, mapping));
+        extension.setMappings(Map.of(taskId, mappings));
+
+        LocalDateTime localDateTimeValue = LocalDateTime.now();
+        Date dateValue = Date.from(localDateTimeValue.atZone(ZoneOffset.UTC).toInstant());
+
+        Map<String, Object> availableVariables = singletonMap(integerOutputName, localDateTimeValue);
+
+        //when
+        Map<String, Object> outPutVariables = variablesMappingProvider.calculateOutPutVariables(buildMappingExecutionContext(execution),
+            availableVariables);
+
+        //then
+        assertThat(outPutVariables.get(processVariableName)).asInstanceOf(InstanceOfAssertFactories.DATE).isEqualTo(dateValue);
+    }
+
+
+    @Test
+    public void calculateOutputVariablesShouldConvertValueFromStringToBigDecimal() {
+
+        //given
+        String taskId = "task-id";
+        String processVariableId = "process-variable-id";
+        String processVariableName = "bigdecimal-process-variable";
+        String stringOutputName = "string-output";
+
+        Extension extension = new Extension();
+        DelegateExecution execution = buildExecution(extension, taskId);
+
+        VariableDefinition bigdecimalProcessVariable = new VariableDefinition();
+        bigdecimalProcessVariable.setType("bigdecimal");
+        bigdecimalProcessVariable.setName(processVariableName);
+        bigdecimalProcessVariable.setId(processVariableId);
+        extension.setProperties(Map.of(processVariableId, bigdecimalProcessVariable));
+
+        ProcessVariablesMapping mappings = new ProcessVariablesMapping();
+        Mapping mapping = new Mapping();
+        mapping.setType(Mapping.SourceMappingType.VARIABLE);
+        mapping.setValue(stringOutputName);
+        mappings.setOutputs(Map.of(processVariableName, mapping));
+        extension.setMappings(Map.of(taskId, mappings));
+
+        String stringValue = "4.1";
+        Map<String, Object> availableVariables = singletonMap(stringOutputName, stringValue);
+
+        ExpressionResolver expressionResolver = ExpressionResolverHelper.initContext(execution, extension);
+        ReflectionTestUtils.setField(variablesMappingProvider,
+            "expressionResolver",
+            expressionResolver);
+        ExpressionResolverHelper.setExecutionVariables(execution, availableVariables);
+
+        //when
+        Map<String, Object> outPutVariables = variablesMappingProvider.calculateOutPutVariables(buildMappingExecutionContext(execution),
+            availableVariables);
+
+        //then
+        assertThat(outPutVariables.get(processVariableName)).asInstanceOf(InstanceOfAssertFactories.BIG_DECIMAL).isEqualByComparingTo(stringValue);
     }
 
     private DelegateExecution initExpressionResolverTest(String fileName, String processDefinitionKey) throws IOException {
